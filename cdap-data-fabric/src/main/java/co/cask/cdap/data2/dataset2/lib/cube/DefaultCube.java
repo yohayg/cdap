@@ -45,6 +45,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -53,6 +54,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import javax.annotation.Nullable;
 
 /**
@@ -68,6 +73,7 @@ public class DefaultCube implements Cube, MeteredDataset {
   private final Map<Integer, FactTable> resolutionToFactTable;
   private final Map<String, ? extends Aggregation> aggregations;
   private final Map<String, AggregationAlias> aggregationAliasMap;
+  private final ExecutorService executorService;
 
   @Nullable
   private MetricsCollector metrics;
@@ -81,6 +87,7 @@ public class DefaultCube implements Cube, MeteredDataset {
       resolutionToFactTable.put(resolution, factTableSupplier.get(resolution, 3600));
     }
     this.aggregationAliasMap = aggregationAliasMap;
+    this.executorService = Executors.newFixedThreadPool(4);
   }
 
   @Override
@@ -156,8 +163,17 @@ public class DefaultCube implements Cube, MeteredDataset {
       }
     }
 
+    List<Future> futures = new ArrayList<>();
     for (FactTable table : resolutionToFactTable.values()) {
-      table.add(toWrite);
+      futures.add(executorService.submit(() -> table.add(toWrite)));
+    }
+
+    for (Future future : futures) {
+      try {
+        future.get();
+      } catch (InterruptedException | ExecutionException e) {
+        throw new RuntimeException(e);
+      }
     }
 
     incrementMetric("cube.cubeFact.add.request.count", 1);
