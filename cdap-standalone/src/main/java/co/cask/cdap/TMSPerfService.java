@@ -108,7 +108,7 @@ public class TMSPerfService extends AbstractExecutionThreadService {
             // give each thread its own topic
             int numTopics = numThreads;
             for (int i = 0; i < numTopics; i++) {
-                topicIds.add(new TopicId("default", "topic" + i));
+                topicIds.add(new TopicId("default", "topic1"));
             }
             int threadCount = 0;
             for (TopicId topicId : topicIds) {
